@@ -4,14 +4,24 @@ import sys
 import requests
 
 
+class VKErrors:
+    TOO_MANY_REQUESTS = 6
+    NOT_ENOUGH_RIGHTS = 7
+    ACCESS_DENIED = 15
+    USER_DELETED = 18
+
+
 class VK:
     API_URL_BASE = 'https://api.vk.com/method/'
-    TOKEN = '7b23e40ad10e08d3b7a8ec0956f2c57910c455e886b480b7d9fb59859870658c4a0b8fdc4dd494db19099'
+    TOKEN = 'from config.json'
     API_VERSION = '5.74'
+
+    def __init__(self, token):
+        self.TOKEN = token
 
     def request(self, method, data):
 
-        if type(data) is not dict:
+        if not isinstance(data, dict):
             print('Trying to send some false data. You need dictionary')
             return []
 
@@ -29,16 +39,18 @@ class VK:
 
             json_response = response.json()
 
-            # checking for errors
             if 'error' in json_response:
-                if json_response['error']['error_code'] == 6:  # too many requests
+                if json_response['error']['error_code'] == VKErrors.TOO_MANY_REQUESTS:
                     continue
-                elif json_response['error']['error_code'] == 15:  # access denied
-                    print('Access denied to {}')
+                elif json_response['error']['error_code'] in \
+                        (
+                            VKErrors.ACCESS_DENIED,
+                            VKErrors.NOT_ENOUGH_RIGHTS,
+                            VKErrors.USER_DELETED
+                        ):
                     return []
-                elif json_response['error']['error_code'] == 7:  # not enough rights
-                    return []
-                elif json_response['error']['error_code'] == 18:  # user was deleted
+                else:
+                    print('Some undefined error. Check if your token is right')
                     return []
 
             break
@@ -54,9 +66,9 @@ class VK:
     def user_friends(self, uid):
         chunk_offset = 0
         chunk_size = 2500
-        friends = []
+        friends = {}
         while True:
-            chunk = self.request('friends.get', {
+            data_chunk = self.request('friends.get', {
                 'user_id': uid,
                 'offset': chunk_offset,
                 'count': chunk_size
@@ -64,11 +76,11 @@ class VK:
             chunk_offset += chunk_size
 
             if len(friends) == 0:
-                friends = chunk
+                friends = data_chunk
             else:
-                friends['items'] = friends['items'] + chunk['items']
+                friends['items'] = friends['items'] + data_chunk['items']
 
-            if len(chunk['items']) < chunk_size:
+            if chunk_offset > data_chunk['count']:
                 break
         return friends
 
@@ -77,7 +89,7 @@ class VK:
         chunk_size = 100
         friends = []
         while True:
-            chunk = self.request('users.getFollowers', {
+            data_chunk = self.request('users.getFollowers', {
                 'user_id': uid,
                 'offset': chunk_offset,
                 'count': chunk_size
@@ -85,11 +97,11 @@ class VK:
             chunk_offset += chunk_size
 
             if len(friends) == 0:
-                friends = chunk
+                friends = data_chunk
             else:
-                friends['items'] = friends['items'] + chunk['items']
+                friends['items'] = friends['items'] + data_chunk['items']
 
-            if len(chunk['items']) < chunk_size:
+            if len(data_chunk['items']) < chunk_size:
                 break
         return friends
 
@@ -104,8 +116,12 @@ class VK:
 def progress_counter(current, overall):
     number_of_bins = 20
     bin_size = overall / number_of_bins
+
+    hashes_number = int(current // bin_size)
+    dots_number = int((overall - current) // bin_size)
     percentage = str(math.floor(10000 * current / overall) / 100) + '%'
-    print('[' + '#' * int(current / bin_size) + '.' * int(math.ceil((overall - current) / bin_size)) + '] ' + percentage, end='\r\n')
+
+    print('[' + '#' * hashes_number + '.' * dots_number + '] ' + percentage)
 
 
 def chunks(l, n):
@@ -113,19 +129,36 @@ def chunks(l, n):
         yield l[i:i+n]
 
 
+def get_settings():
+    with open('./config.json', 'r') as file:
+        return json.load(file)
+
+
 if __name__ == '__main__':
     if len(sys.argv) <= 1:
         print('You haven\'t assigned username/userid. Try to add it')
         exit(0)
 
+    settings = get_settings()
+
     user_id = sys.argv[1]
 
     print('Started')
 
-    vk = VK()
+    vk = VK('sasd')
 
     print('Retrieving current user groups')
-    current_user = vk.request('users.get', {'user_ids': user_id})[0]
+    users = vk.request('users.get', {'user_ids': user_id})
+
+    if len(users) == 0:
+        print('There is no users with such credentials: {}'.format(user_id))
+        exit(0)
+
+    if len(users) > 1:
+        print('It\'s strange, but you found more than one user')
+        exit(0)
+
+    current_user = users[0]
     current_user_groups = vk.user_groups(current_user['id'])
     print('{} found'.format(current_user_groups['count']))
 
@@ -134,16 +167,14 @@ if __name__ == '__main__':
     print('Found {} friends'.format(current_user_friends['count']))
 
     print('Checking friend\'s groups')
-    current_index = 0
     overall_items = current_user_friends['count']
     current_user_groups = set(current_user_groups['items'])
 
-    for friend_id in current_user_friends['items']:
+    for current_index, friend_id in enumerate(current_user_friends['items']):
         friend_groups = vk.user_groups(friend_id)
         if len(friend_groups) == 0:
             continue
         current_user_groups = current_user_groups.difference(set(friend_groups['items']))
-        current_index += 1
         progress_counter(current_index, overall_items)
     print('{} found'.format(len(current_user_groups)))
 
