@@ -2,9 +2,11 @@ import json
 import math
 import sys
 import requests
+from enum import Enum, IntEnum
 
 
-class VKErrors:
+class VKErrors(IntEnum):
+    INVALID_TOKEN = 5
     TOO_MANY_REQUESTS = 6
     NOT_ENOUGH_RIGHTS = 7
     ACCESS_DENIED = 15
@@ -15,6 +17,14 @@ class VK:
     API_URL_BASE = 'https://api.vk.com/method/'
     TOKEN = 'from config.json'
     API_VERSION = '5.74'
+
+    # VKErrors = Enum('VKErrors', {
+    #     'INVALID_TOKEN': 5,
+    #     'TOO_MANY_REQUESTS': 6,
+    #     'NOT_ENOUGH_RIGHTS': 7,
+    #     'ACCESS_DENIED ': 15,
+    #     'USER_DELETED ': 18,
+    # })
 
     def __init__(self, token):
         self.TOKEN = token
@@ -40,13 +50,18 @@ class VK:
             json_response = response.json()
 
             if 'error' in json_response:
-                if json_response['error']['error_code'] == VKErrors.TOO_MANY_REQUESTS:
+                code = json_response['error']['error_code']
+                if code == VKErrors.TOO_MANY_REQUESTS:
                     continue
-                elif json_response['error']['error_code'] in \
-                        (
+                elif code in (
+                            VKErrors.INVALID_TOKEN,
                             VKErrors.ACCESS_DENIED,
                             VKErrors.NOT_ENOUGH_RIGHTS,
-                            VKErrors.USER_DELETED
+                        ):
+                    print('Error: code {} - {}'.format(code, json_response['error']['error_msg']))
+                    return []
+                elif code in (
+                            VKErrors.USER_DELETED,
                         ):
                     return []
                 else:
@@ -130,7 +145,7 @@ def chunks(l, n):
 
 
 def get_settings():
-    with open('./config.json', 'r') as file:
+    with open('config.json', 'r') as file:
         return json.load(file)
 
 
@@ -145,7 +160,7 @@ if __name__ == '__main__':
 
     print('Started')
 
-    vk = VK('sasd')
+    vk = VK(settings['token'])
 
     print('Retrieving current user groups')
     users = vk.request('users.get', {'user_ids': user_id})
