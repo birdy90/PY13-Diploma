@@ -5,12 +5,12 @@ import requests
 from enum import Enum, IntEnum
 
 
-class VKErrors(IntEnum):
-    INVALID_TOKEN = 5
-    TOO_MANY_REQUESTS = 6
-    NOT_ENOUGH_RIGHTS = 7
-    ACCESS_DENIED = 15
-    USER_DELETED = 18
+# class VKErrors(IntEnum):
+#     INVALID_TOKEN = 5
+#     TOO_MANY_REQUESTS = 6
+#     NOT_ENOUGH_RIGHTS = 7
+#     ACCESS_DENIED = 15
+#     USER_DELETED = 18
 
 
 class VK:
@@ -18,13 +18,13 @@ class VK:
     TOKEN = 'from config.json'
     API_VERSION = '5.74'
 
-    # VKErrors = Enum('VKErrors', {
-    #     'INVALID_TOKEN': 5,
-    #     'TOO_MANY_REQUESTS': 6,
-    #     'NOT_ENOUGH_RIGHTS': 7,
-    #     'ACCESS_DENIED ': 15,
-    #     'USER_DELETED ': 18,
-    # })
+    VKErrors = IntEnum('VKErrors', {
+        'INVALID_TOKEN': 5,
+        'TOO_MANY_REQUESTS': 6,
+        'NOT_ENOUGH_RIGHTS': 7,
+        'ACCESS_DENIED ': 15,
+        'USER_DELETED ': 18,
+    })
 
     def __init__(self, token):
         self.TOKEN = token
@@ -51,17 +51,17 @@ class VK:
 
             if 'error' in json_response:
                 code = json_response['error']['error_code']
-                if code == VKErrors.TOO_MANY_REQUESTS:
+                if code == self.VKErrors.TOO_MANY_REQUESTS:
                     continue
                 elif code in (
-                            VKErrors.INVALID_TOKEN,
-                            VKErrors.ACCESS_DENIED,
-                            VKErrors.NOT_ENOUGH_RIGHTS,
+                            self.VKErrors.INVALID_TOKEN,
+                            self.VKErrors.ACCESS_DENIED,
+                            self.VKErrors.NOT_ENOUGH_RIGHTS,
                         ):
                     print('Error: code {} - {}'.format(code, json_response['error']['error_msg']))
                     return []
                 elif code in (
-                            VKErrors.USER_DELETED,
+                            self.VKErrors.USER_DELETED,
                         ):
                     return []
                 else:
